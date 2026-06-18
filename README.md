@@ -80,6 +80,55 @@ docker compose logs -f app
 - フィードバック保存
 - 全データ削除
 
+## データ構造
+
+実機ではSQLite、Web版では同じ構造のデータを `localStorage` に保存します。
+
+```mermaid
+erDiagram
+  people ||--o{ interaction_logs : has
+
+  people {
+    INTEGER id PK
+    TEXT name
+    TEXT relationship_type
+    TEXT memo
+    TEXT created_at
+    TEXT updated_at
+  }
+
+  interaction_logs {
+    INTEGER id PK
+    INTEGER person_id FK
+    TEXT event_date
+    TEXT event_text
+    INTEGER mood_before
+    INTEGER mood_after
+    INTEGER fatigue_score
+    INTEGER boundary_score
+    TEXT note
+    TEXT created_at
+    TEXT updated_at
+  }
+
+  usage_logs {
+    INTEGER id PK
+    TEXT action
+    TEXT screen
+    INTEGER target_id
+    TEXT created_at
+  }
+
+  feedbacks {
+    INTEGER id PK
+    TEXT category
+    TEXT message
+    TEXT created_at
+  }
+```
+
+`usage_logs.target_id` は記録や相手など複数種類の対象IDを入れるため、固定の外部キーとしては扱っていません。`feedbacks` はアプリ改善用の独立した記録です。
+
 ## ファイル構成
 
 ```text
