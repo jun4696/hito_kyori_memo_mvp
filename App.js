@@ -495,7 +495,8 @@ function AboutScreen({ onClear }) {
       </Section>
       <Section title="データの保存">
         <Text style={styles.body}>Expo Goや実機では端末内SQLiteに保存します。Web確認ではブラウザのlocalStorageに保存します。</Text>
-        <Text style={styles.muted}>外部APIやログインは使いません。</Text>
+        <Text style={styles.body}>Web版の記録は、このブラウザ内にのみ保存されます。別の端末や別のブラウザには同期されません。</Text>
+        <Text style={styles.muted}>ブラウザのデータを削除すると、記録も消える場合があります。外部APIやログインは使いません。</Text>
       </Section>
       <TouchableOpacity style={styles.dangerButton} onPress={onClear}>
         <Text style={styles.dangerButtonText}>全データ削除</Text>

@@ -8,6 +8,7 @@
     "web": "expo start --web --host lan --port 8080",
     "android": "expo start --android --host lan --port 8080",
     "ios": "expo start --ios --host lan --port 8080",
+    "build:web": "expo export --platform web --output-dir dist",
     "doctor": "expo-doctor"
   },
   "dependencies": {
