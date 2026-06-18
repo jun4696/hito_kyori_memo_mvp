@@ -1,0 +1,15 @@
+FROM node:20-bookworm-slim
+
+WORKDIR /app
+
+ENV EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+ENV REACT_NATIVE_PACKAGER_HOSTNAME=0.0.0.0
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+EXPOSE 19000 19001 19002 8080
+
+CMD ["npm", "run", "start"]
