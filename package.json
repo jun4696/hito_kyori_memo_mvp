@@ -9,6 +9,7 @@
     "android": "expo start --android --host lan --port 8080",
     "ios": "expo start --ios --host lan --port 8080",
     "build:web": "expo export --platform web --output-dir dist",
+    "build:web:github-pages": "npm run build:web && node scripts/prepare-github-pages.js",
     "doctor": "expo-doctor"
   },
   "dependencies": {

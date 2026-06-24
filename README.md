@@ -157,6 +157,14 @@ Webバンドル確認:
 docker compose run --rm app npx expo export --platform web --output-dir dist
 ```
 
+GitHub Pages用Webバンドル確認:
+
+```bash
+docker compose run --rm app npm run build:web:github-pages
+```
+
+GitHub Pagesへデプロイする場合は、`main` ブランチへpushした後、GitHubのリポジトリ設定で Pages の Source を `GitHub Actions` にします。
+
 サーバーの状態確認:
 
 ```bash
