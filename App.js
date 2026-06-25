@@ -35,6 +35,8 @@ import {
   listPeople,
   listRecentWeeklyEntries,
   saveUsageLog,
+  updateInteraction,
+  updatePerson,
 } from "./src/db";
 
 const SCREENS = [
@@ -78,6 +80,7 @@ export default function App() {
   const [screen, setScreen] = useState("home");
   const [people, setPeople] = useState([]);
   const [entries, setEntries] = useState([]);
+  const [editingPerson, setEditingPerson] = useState(null);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [weeklyStats, setWeeklyStats] = useState([]);
   const [peopleStats, setPeopleStats] = useState([]);
@@ -184,7 +187,14 @@ export default function App() {
         {screen === "people" && (
           <PeopleScreen
             people={people}
-            onAdd={() => setScreen("personForm")}
+            onAdd={() => {
+              setEditingPerson(null);
+              setScreen("personForm");
+            }}
+            onEdit={(person) => {
+              setEditingPerson(person);
+              setScreen("personForm");
+            }}
             onDelete={async (id) => {
               await deletePerson(id);
               await reload();
@@ -195,7 +205,8 @@ export default function App() {
             }}
           />
         )}
-        {screen === "personForm" && <PersonForm onSave={async () => {
+        {screen === "personForm" && <PersonForm person={editingPerson} onSave={async () => {
+          setEditingPerson(null);
           await reload();
           setScreen("people");
         }} />}
@@ -208,6 +219,21 @@ export default function App() {
               setScreen("detail");
             }}
             onAddPerson={() => setScreen("personForm")}
+          />
+        )}
+        {screen === "entryEdit" && selectedEntry && (
+          <EntryForm
+            people={people}
+            entry={selectedEntry}
+            onSave={async (id) => {
+              setSelectedEntry(await getInteraction(id));
+              await reload();
+              setScreen("detail");
+            }}
+            onAddPerson={() => {
+              setEditingPerson(null);
+              setScreen("personForm");
+            }}
           />
         )}
         {screen === "history" && (
@@ -225,6 +251,7 @@ export default function App() {
         {screen === "detail" && selectedEntry && (
           <DetailScreen
             entry={selectedEntry}
+            onEdit={() => setScreen("entryEdit")}
             onDelete={() =>
               confirm("この記録を削除しますか？", async () => {
                 await deleteInteraction(selectedEntry.id);
@@ -288,7 +315,7 @@ function HomeScreen({ entries, insights, onEntryPress, onCreate, onFeedback }) {
   );
 }
 
-function PeopleScreen({ people, onAdd, onDelete, onHistory }) {
+function PeopleScreen({ people, onAdd, onEdit, onDelete, onHistory }) {
   return (
     <View>
       <TouchableOpacity style={styles.primaryButton} onPress={onAdd}>
@@ -302,29 +329,38 @@ function PeopleScreen({ people, onAdd, onDelete, onHistory }) {
             <Text style={styles.body}>平均疲労度 {round(person.avg_fatigue)} / 平均距離感 {round(person.avg_boundary)}</Text>
             {person.memo ? <Text style={styles.muted}>{person.memo}</Text> : null}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.dangerLink} onPress={() => confirm("この相手と記録を削除しますか？", () => onDelete(person.id))}>
-            <Text style={styles.dangerText}>削除</Text>
-          </TouchableOpacity>
+          <View style={styles.cardActions}>
+            <TouchableOpacity style={styles.subtleAction} onPress={() => onEdit(person)}>
+              <Text style={styles.subtleActionText}>編集</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.subtleAction} onPress={() => confirm("この相手と記録を削除しますか？", () => onDelete(person.id))}>
+              <Text style={styles.subtleDangerText}>削除</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ))}
     </View>
   );
 }
 
-function PersonForm({ onSave }) {
-  const [name, setName] = useState("");
-  const [relationship, setRelationship] = useState(RELATIONSHIP_TYPES[0]);
-  const [memo, setMemo] = useState("");
+function PersonForm({ person, onSave }) {
+  const [name, setName] = useState(person?.name || "");
+  const [relationship, setRelationship] = useState(person?.relationship_type || RELATIONSHIP_TYPES[0]);
+  const [memo, setMemo] = useState(person?.memo || "");
 
   async function submit() {
     if (!name.trim()) return Alert.alert("入力不足", "名前を入力してください。");
-    await createPerson({ name, relationship_type: relationship, memo });
+    if (person?.id) {
+      await updatePerson(person.id, { name, relationship_type: relationship, memo });
+    } else {
+      await createPerson({ name, relationship_type: relationship, memo });
+    }
     onSave();
   }
 
   return (
     <View>
-      <Section title="相手登録">
+      <Section title={person?.id ? "相手編集" : "相手登録"}>
         <Text style={styles.label}>名前</Text>
         <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="ニックネーム推奨" />
         <Text style={styles.label}>関係性</Text>
@@ -339,8 +375,21 @@ function PersonForm({ onSave }) {
   );
 }
 
-function EntryForm({ people, onSave, onAddPerson }) {
-  const [form, setForm] = useState({ ...initialEntry, person_id: people[0]?.id ?? null });
+function EntryForm({ people, entry, onSave, onAddPerson }) {
+  const [form, setForm] = useState(
+    entry
+      ? {
+          person_id: entry.person_id,
+          event_date: entry.event_date,
+          event_text: entry.event_text || "",
+          mood_before: entry.mood_before,
+          mood_after: entry.mood_after,
+          fatigue_score: entry.fatigue_score,
+          boundary_score: entry.boundary_score,
+          note: entry.note || "",
+        }
+      : { ...initialEntry, person_id: people[0]?.id ?? null },
+  );
 
   useEffect(() => {
     if (!form.person_id && people[0]?.id) {
@@ -355,8 +404,8 @@ function EntryForm({ people, onSave, onAddPerson }) {
   async function submit() {
     if (!form.person_id) return Alert.alert("相手が必要です", "先に相手を登録してください。");
     if (!form.event_text.trim()) return Alert.alert("入力不足", "出来事を短く入力してください。");
-    const id = await createInteraction(form);
-    setForm({ ...initialEntry, person_id: form.person_id, event_date: todayString() });
+    const id = entry?.id ? await updateInteraction(entry.id, form) : await createInteraction(form);
+    if (!entry?.id) setForm({ ...initialEntry, person_id: form.person_id, event_date: todayString() });
     onSave(id);
   }
 
@@ -373,7 +422,7 @@ function EntryForm({ people, onSave, onAddPerson }) {
 
   return (
     <View>
-      <Section title="記録入力">
+      <Section title={entry?.id ? "記録編集" : "記録入力"}>
         <Text style={styles.label}>相手</Text>
         <ChoiceRow options={people.map((person) => ({ label: person.name, value: person.id }))} value={form.person_id} onChange={(value) => setField("person_id", value)} />
         <Text style={styles.label}>日付</Text>
@@ -415,7 +464,7 @@ function HistoryScreen({ people, entries, filters, setFilters, onEntryPress }) {
   );
 }
 
-function DetailScreen({ entry, onDelete }) {
+function DetailScreen({ entry, onEdit, onDelete }) {
   return (
     <View>
       <Section title="記録詳細">
@@ -431,9 +480,14 @@ function DetailScreen({ entry, onDelete }) {
         <Text style={styles.label}>コメント</Text>
         <Text style={styles.insight}>{generateInteractionComment(entry)}</Text>
       </Section>
-      <TouchableOpacity style={styles.dangerButton} onPress={onDelete}>
-        <Text style={styles.dangerButtonText}>削除</Text>
-      </TouchableOpacity>
+      <View style={styles.detailActions}>
+        <TouchableOpacity style={styles.subtleAction} onPress={onEdit}>
+          <Text style={styles.subtleActionText}>編集</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.subtleAction} onPress={onDelete}>
+          <Text style={styles.subtleDangerText}>削除</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -767,11 +821,31 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontWeight: "800",
   },
-  dangerLink: {
+  cardActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 14,
     marginTop: 8,
   },
-  dangerText: {
-    color: "#9d312f",
+  detailActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 14,
+    marginTop: -6,
+    marginBottom: 14,
+  },
+  subtleAction: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  subtleActionText: {
+    color: "#66706b",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  subtleDangerText: {
+    color: "#c78684",
+    fontSize: 12,
     fontWeight: "700",
   },
   label: {

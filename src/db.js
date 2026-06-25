@@ -201,6 +201,29 @@ export async function createPerson({ name, relationship_type, memo }) {
   return result.lastInsertRowId;
 }
 
+export async function updatePerson(id, { name, relationship_type, memo }) {
+  const now = new Date().toISOString();
+
+  if (isWeb) {
+    const store = loadStore();
+    store.people = store.people.map((person) =>
+      person.id === id
+        ? { ...person, name: name.trim(), relationship_type, memo: memo.trim(), updated_at: now }
+        : person,
+    );
+    saveStore(store);
+    await saveUsageLog("update_person", "people", id);
+    return;
+  }
+
+  const db = await getDb();
+  await db.runAsync(
+    "UPDATE people SET name = ?, relationship_type = ?, memo = ?, updated_at = ? WHERE id = ?",
+    [name.trim(), relationship_type, memo.trim(), now, id],
+  );
+  await saveUsageLog("update_person", "people", id);
+}
+
 export async function deletePerson(id) {
   if (isWeb) {
     const store = loadStore();
@@ -256,6 +279,55 @@ export async function createInteraction(input) {
   );
   await saveUsageLog("create_interaction", "entry", result.lastInsertRowId);
   return result.lastInsertRowId;
+}
+
+export async function updateInteraction(id, input) {
+  const now = new Date().toISOString();
+
+  if (isWeb) {
+    const store = loadStore();
+    store.interaction_logs = store.interaction_logs.map((entry) =>
+      entry.id === id
+        ? {
+            ...entry,
+            person_id: input.person_id,
+            event_date: input.event_date,
+            event_text: input.event_text.trim(),
+            mood_before: input.mood_before,
+            mood_after: input.mood_after,
+            fatigue_score: input.fatigue_score,
+            boundary_score: input.boundary_score,
+            note: input.note.trim(),
+            updated_at: now,
+          }
+        : entry,
+    );
+    saveStore(store);
+    await saveUsageLog("update_interaction", "entry", id);
+    return id;
+  }
+
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE interaction_logs
+     SET person_id = ?, event_date = ?, event_text = ?, mood_before = ?, mood_after = ?,
+         fatigue_score = ?, boundary_score = ?, note = ?, updated_at = ?
+     WHERE id = ?`,
+    [
+      input.person_id,
+      input.event_date,
+      input.event_text.trim(),
+      input.mood_before,
+      input.mood_after,
+      input.fatigue_score,
+      input.boundary_score,
+      input.note.trim(),
+      now,
+      id,
+    ],
+  );
+  await saveUsageLog("update_interaction", "entry", id);
+  return id;
 }
 
 export async function deleteInteraction(id) {
